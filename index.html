@@ -638,7 +638,7 @@ function saveLearning(arr){
 }
 function addLearning(b64,g,r,a,m){
   const arr=getLearning();
-  arr.unshift({b64,grande:g,rasa:r,azul:a,mesa:m,total:g*180+r*720+a*1800+m,date:new Date().toLocaleString("pt-BR")});
+  arr.unshift({b64,grande:g,rasa:r,azul:a,pacote:p,mesa:m,total:g*180+r*720+a*2100+p*185+m,date:new Date().toLocaleString("pt-BR")});
   saveLearning(arr);refreshLearnUI();
 }
 function deleteLearning(i){const a=getLearning();a.splice(i,1);saveLearning(a);refreshLearnUI();showToast("Exemplo removido");}
@@ -684,7 +684,7 @@ function compressImage(file){
 
 async function handleFiles(e){
   for(const f of Array.from(e.target.files)){
-    if(photos.length>=6){showToast("Máx. 6 fotos");break;}
+    if(photos.length>=10){showToast("Máx. 10 fotos");break;}
     const c=await compressImage(f);
     photos.push({dataUrl:c.dataUrl,b64:c.b64});
     renderGrid();
@@ -709,7 +709,7 @@ function renderGrid(){
     d.innerHTML="<img src=\""+p.dataUrl+"\"><button class=\"rm\" onclick=\"removePhoto("+i+")\">✕</button>";
     grid.appendChild(d);
   });
-  if(photos.length<6){
+  if(photos.length<10){
     const a=document.createElement("div");a.className="add-more";
     a.innerHTML="<input type=\"file\" accept=\"image/*\" multiple onchange=\"handleFiles(event)\"><div class=\"add-more-plus\">+</div><div class=\"add-more-lbl\">Mais</div>";
     grid.appendChild(a);
@@ -748,7 +748,7 @@ async function analyzeAll(){
 
 async function analyzePhoto(photo){
   const learned=getLearning();
-  const system="Você é especialista em unidades operacionais dos Correios brasileiros.\nGABARITAGEM (capacidade total compactada):\n- Caixeta grande amarela (alta/funda): 180 objetos\n- Bandeja rasa amarela (baixa/comprida): 720 objetos\n- Caixeta azul: 1800 objetos\n- Mesa de escaninhos: estimativa visual conforme exemplos\nRetorne APENAS JSON: {\"grande\":<int>,\"rasa\":<int>,\"azul\":<int>,\"mesa\":<int>,\"observacao\":\"<frase>\"}";
+  const system="Você é especialista em unidades operacionais dos Correios brasileiros.\nGABARITAGEM (capacidade total compactada):\n- Caixeta grande amarela (alta/funda): 180 objetos\n- Bandeja rasa amarela (baixa/comprida): 720 objetos\n- Caixeta azul: 2100 objetos\n- Mesa de escaninhos: estimativa visual conforme exemplos\nRetorne APENAS JSON: {\"grande\":<int>,\"rasa\":<int>,\"azul\":<int>,\"mesa\":<int>,\"observacao\":\"<frase>\"}";
   const msgs=[];
   BASE_TRAINING.forEach((ex,i)=>{
     msgs.push({role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:ex.b64}},{type:"text",text:"Ref "+(i+1)+": mesa "+ex.total+" objetos."}]});
@@ -773,9 +773,9 @@ async function analyzePhoto(photo){
 }
 
 function showResults(){
-  let gT=0,rT=0,aT=0,mT=0;
-  results.forEach(r=>{gT+=parseInt(r.grande)||0;rT+=parseInt(r.rasa)||0;aT+=parseInt(r.azul)||0;mT+=parseInt(r.mesa)||0;});
-  const total=gT*180+rT*720+aT*1800+mT;
+  let gT=0,rT=0,aT=0,pT=0,mT=0;
+  results.forEach(r=>{gT+=parseInt(r.grande)||0;rT+=parseInt(r.rasa)||0;aT+=parseInt(r.azul)||0;pT+=parseInt(r.pacote)||0;mT+=parseInt(r.mesa)||0;});
+  const total=gT*180+rT*720+aT*2100+pT*185+mT;
   const slaDateVal=document.getElementById("visitSlaDate").value;
   const unitCode=document.getElementById("visitUnit").value;
   const units=getUnits();
@@ -807,7 +807,8 @@ function showResults(){
   const types=[
     {label:"Caixeta Grande Amarela",count:gT,cap:180,cor:"#f0b429"},
     {label:"Bandeja Rasa Amarela",count:rT,cap:720,cor:"#e8520a"},
-    {label:"Caixeta Azul",count:aT,cap:1800,cor:"#3b82f6"},
+    {label:"Caixeta Azul",count:aT,cap:2100,cor:"#3b82f6"},
+    {label:"Pacote / Maço",count:pT,cap:185,cor:"#2dba6e"},
     {label:"Mesa de Escaninhos",count:0,cap:1,cor:"#a78bfa",isMesa:true,mesaTotal:mT}
   ];
   types.forEach(t=>{
@@ -821,11 +822,11 @@ function showResults(){
   const plist=document.getElementById("photoResultsList");plist.innerHTML="";
   results.forEach((r,i)=>{
     const p=photos[r.idx];
-    const g=parseInt(r.grande)||0,ra=parseInt(r.rasa)||0,az=parseInt(r.azul)||0,me=parseInt(r.mesa)||0;
-    const sub=g*180+ra*720+az*1800+me;
+    const g=parseInt(r.grande)||0,ra=parseInt(r.rasa)||0,az=parseInt(r.azul)||0,pa=parseInt(r.pacote)||0,me=parseInt(r.mesa)||0;
+    const sub=g*180+ra*720+az*2100+pa*185+me;
     const det=[];
     if(g)det.push(g+"×Gr="+g*180);if(ra)det.push(ra+"×Ra="+ra*720);
-    if(az)det.push(az+"×Az="+az*1800);if(me)det.push("Mesa="+me.toLocaleString("pt-BR"));
+    if(az)det.push(az+"×Az="+az*2100);if(pa)det.push(pa+"×Pct="+pa*185);if(me)det.push("Mesa="+me.toLocaleString("pt-BR"));
     const el=document.createElement("div");el.className="pr-item";
     el.innerHTML="<img class=\"pr-thumb\" src=\""+p.dataUrl+"\"><div class=\"pr-info\"><div class=\"pr-name\">Foto "+(i+1)+(r.observacao?" · "+r.observacao:"")+"</div><div class=\"pr-detail\">"+(det.join(" / ")||"Nenhum detectado")+"</div></div><div class=\"pr-total\">"+sub.toLocaleString("pt-BR")+"</div>";
     plist.appendChild(el);
@@ -840,7 +841,7 @@ function showResults(){
   results.forEach((r,i)=>{
     const p=photos[r.idx];
     const d=document.createElement("div");d.className="photo-correction";
-    d.innerHTML="<div class=\"pc-label\"><img src=\""+p.dataUrl+"\"><span>Foto "+(i+1)+"</span></div><div class=\"corr-grid\"><div class=\"corr-field\"><label>Cx. Grande</label><input type=\"number\" id=\"c"+i+"_g\" min=\"0\" value=\""+(parseInt(r.grande)||0)+"\"></div><div class=\"corr-field\"><label>Bandeja</label><input type=\"number\" id=\"c"+i+"_r\" min=\"0\" value=\""+(parseInt(r.rasa)||0)+"\"></div><div class=\"corr-field\"><label>Cx. Azul</label><input type=\"number\" id=\"c"+i+"_a\" min=\"0\" value=\""+(parseInt(r.azul)||0)+"\"></div><div class=\"corr-field\"><label>Mesa (obj)</label><input type=\"number\" id=\"c"+i+"_m\" min=\"0\" value=\""+(parseInt(r.mesa)||0)+"\"></div></div>";
+    d.innerHTML="<div class=\"pc-label\"><img src=\""+p.dataUrl+"\"><span>Foto "+(i+1)+"</span></div><div class=\"corr-grid\"><div class=\"corr-field\"><label>Cx. Grande</label><input type=\"number\" id=\"c"+i+"_g\" min=\"0\" value=\""+(parseInt(r.grande)||0)+"\"></div><div class=\"corr-field\"><label>Bandeja</label><input type=\"number\" id=\"c"+i+"_r\" min=\"0\" value=\""+(parseInt(r.rasa)||0)+"\"></div><div class=\"corr-field\"><label>Cx. Azul</label><input type=\"number\" id=\"c"+i+"_a\" min=\"0\" value=\""+(parseInt(r.azul)||0)+"\"></div><div class=\\\"corr-field\\"><label>Pacotes</label><input type=\\\"number\\\" id=\\\"c"+i+"_p\\\" min=\\\"0\\\" value=\\\""+(parseInt(r.pacote)||0)+"\\\"></div><div class=\"corr-field\"><label>Mesa (obj)</label><input type=\"number\" id=\"c"+i+"_m\" min=\"0\" value=\""+(parseInt(r.mesa)||0)+"\"></div></div>";
     cl.appendChild(d);
   });
   refreshLearnUI();
@@ -881,6 +882,7 @@ function recalculate(){
     r.grande=parseInt(document.getElementById("c"+i+"_g").value)||0;
     r.rasa=parseInt(document.getElementById("c"+i+"_r").value)||0;
     r.azul=parseInt(document.getElementById("c"+i+"_a").value)||0;
+    r.pacote=parseInt(document.getElementById("c"+i+"_p").value)||0;
     r.mesa=parseInt(document.getElementById("c"+i+"_m").value)||0;
   });
   showResults();showToast("Recalculado");
@@ -891,6 +893,7 @@ function saveWithLearning(){
     const g=parseInt(document.getElementById("c"+i+"_g").value)||0;
     const ra=parseInt(document.getElementById("c"+i+"_r").value)||0;
     const az=parseInt(document.getElementById("c"+i+"_a").value)||0;
+    const pa=parseInt(document.getElementById("c"+i+"_p").value)||0;
     const m=parseInt(document.getElementById("c"+i+"_m").value)||0;
     addLearning(photos[r.idx].b64,g,ra,az,m);
   });
@@ -899,14 +902,15 @@ function saveWithLearning(){
 function saveHistoryOnly(){_saveHist();showToast("Salvo no histórico");}
 
 function _saveHist(){
-  let g=0,r=0,a=0,m=0;
+  let g=0,r=0,a=0,p=0,m=0;
   results.forEach((_,i)=>{
     g+=parseInt(document.getElementById("c"+i+"_g").value)||0;
     r+=parseInt(document.getElementById("c"+i+"_r").value)||0;
     a+=parseInt(document.getElementById("c"+i+"_a").value)||0;
+    p+=parseInt(document.getElementById("c"+i+"_p").value)||0;
     m+=parseInt(document.getElementById("c"+i+"_m").value)||0;
   });
-  const total=g*180+r*720+a*1800+m;
+  const total=g*180+r*720+a*2100+p*185+m;
   const unitCode=document.getElementById("visitUnit").value;
   const units=getUnits();const unit=units.find(u=>u.code===unitCode);
   const slaDate=document.getElementById("visitSlaDate").value;
@@ -915,7 +919,7 @@ function _saveHist(){
   const hist=getHistory();
   hist.unshift({
     date:new Date().toLocaleString("pt-BR"),total,fotos:photos.length,
-    grande:g,rasa:r,azul:a,mesa:m,
+    grande:g,rasa:r,azul:a,pacote:p,mesa:m,
     unitCode,unitName:unit?unit.name:"",
     auditor:document.getElementById("visitAuditor").value||"",
     turno:document.getElementById("visitTurno").value,
@@ -934,14 +938,15 @@ function _saveHist(){
 function generateReport(){
   const unitCode=document.getElementById("visitUnit").value;
   const units=getUnits();const u=units.find(x=>x.code===unitCode);
-  let g=0,r=0,a=0,m=0;
+  let g=0,r=0,a=0,p=0,m=0;
   results.forEach((_,i)=>{
     g+=parseInt(document.getElementById("c"+i+"_g").value)||0;
     r+=parseInt(document.getElementById("c"+i+"_r").value)||0;
     a+=parseInt(document.getElementById("c"+i+"_a").value)||0;
+    p+=parseInt(document.getElementById("c"+i+"_p").value)||0;
     m+=parseInt(document.getElementById("c"+i+"_m").value)||0;
   });
-  const total=g*180+r*720+a*1800+m;
+  const total=g*180+r*720+a*2100+p*185+m;
   const slaDate=document.getElementById("visitSlaDate").value;
   const auditor=document.getElementById("visitAuditor").value||"—";
   const turno=document.getElementById("visitTurno").value;
@@ -976,7 +981,8 @@ function generateReport(){
   ];
   if(g>0)lines.push("• Cx. Grande Amarela: "+g+" × 180 = "+(g*180).toLocaleString("pt-BR")+" obj");
   if(r>0)lines.push("• Bandeja Rasa: "+r+" × 720 = "+(r*720).toLocaleString("pt-BR")+" obj");
-  if(a>0)lines.push("• Caixeta Azul: "+a+" × 1800 = "+(a*1800).toLocaleString("pt-BR")+" obj");
+  if(a>0)lines.push("• Caixeta Azul: "+a+" × 2100 = "+(a*2100).toLocaleString("pt-BR")+" obj");
+  if(p>0)lines.push("• Pacote/Maço: "+p+" × 185 = "+(p*185).toLocaleString("pt-BR")+" obj");
   if(m>0)lines.push("• Mesa de Escaninhos: "+m.toLocaleString("pt-BR")+" obj");
   const rprevisto=parseInt(document.getElementById("visitEfetivoPrevisto").value)||0;
   const rpresente=parseInt(document.getElementById("visitEfetivoPresente").value)||0;
@@ -1110,6 +1116,6 @@ window.onload=()=>{
   document.getElementById("visitEfetivoPrevisto").value="";
   document.getElementById("visitEfetivoPresente").value="";
 };
-</script></script>
+</script>
 </body>
 </html>
