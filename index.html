@@ -528,7 +528,7 @@ function saveLearning(arr){
 }
 function addLearning(b64,g,r,a,p,m){
   var arr=getLearning();
-  arr.unshift({b64:b64,grande:g,rasa:r,azul:a,pacote:p,mesa:m,total:g*180+r*720+a*2100+p*185+m,date:new Date().toLocaleString("pt-BR")});
+  arr.unshift({b64:b64,grande:g,rasa:r,azul:a,pacote:p,mesa:m,total:g+r+a+p+m,date:new Date().toLocaleString("pt-BR")});
   saveLearning(arr);refreshLearnUI();
 }
 function deleteLearning(i){var a=getLearning();a.splice(i,1);saveLearning(a);refreshLearnUI();showToast("Removido");}
@@ -629,63 +629,178 @@ async function analyzeAll(){
 }
 async function analyzePhoto(photo){
   var learned=getLearning();
-  var system='Voce e especialista em unidades dos Correios. GABARITAGEM: Caixeta grande amarela: 180 obj. Bandeja rasa amarela: 720 obj. Caixeta azul: 2100 obj. Pacote/maco amarrado: 185 obj. Mesa de escaninhos: estimativa visual. Retorne APENAS JSON: {"grande":<int>,"rasa":<int>,"azul":<int>,"pacote":<int>,"mesa":<int>,"observacao":"<frase>"}';
-  var msgs=[];
-  BASE_TRAINING.forEach(function(ex,i){
-    msgs.push({role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:ex.b64}},{type:"text",text:"Ref "+(i+1)+": mesa "+ex.total+" obj."}]});
-    msgs.push({role:"assistant",content:JSON.stringify({grande:0,rasa:0,azul:0,pacote:0,mesa:ex.total,observacao:"OK"})});
+  var system='Voce e especialista em auditoria de unidades dos Correios. GABARITAGEM (100% cheio): Caixeta grande amarela: 180 obj. Bandeja rasa amarela: 720 obj. Caixeta azul: 2100 obj. Pacote/maco: 185 obj. Mesa de escaninhos (35 escans): 5075 total, 145 por escaninho. REGRAS: 1) MESA: analise cada escaninho individualmente, estime 0/25/50/75/100% e multiplique por 145. 2) CAIXETAS/BANDEJAS - REGRA DA BASE: se a base da pilha NAO esta visivel (caixetas empilhadas ocultando o fundo), considere CHEIA (capacidade total). Se o conteudo esta visivel e nao esta cheio, estime o percentual real. Se claramente vazia, use 0. 3) FILEIRAS: nivel de baixo com base oculta = cheio. Nivel de cima com conteudo visivel = estimar real. 4) Seja conservador em caso de duvida. Retorne APENAS JSON com totais JA CALCULADOS: {"grande":<obj_total>,"rasa":<obj_total>,"azul":<obj_total>,"pacote":<obj_total>,"mesa":<obj_total>,"observacao":"<descricao_breve>"}';
+  var plist=document.getElementById("photoResultsList");plist.innerHTML="";
+  results.forEach(function(r,i){
+    var p=photos[r.idx];var g=parseInt(r.grande)||0,ra=parseInt(r.rasa)||0,az=parseInt(r.azul)||0,pa=parseInt(r.pacote)||0,me=parseInt(r.mesa)||0;
+    var sub=g*180+ra*720+az*2100+pa*185+me;var det=[];
+    if(g)det.push(g+"xGr");if(ra)det.push(ra+"xRa");if(az)det.push(az+"xAz");if(pa)det.push(pa+"xPct");if(me)det.push("Mesa");
+    var el=document.createElement("div");el.className="pr-item";
+    el.innerHTML='<img class="pr-thumb" src="'+p.dataUrl+'">';
+    el.innerHTML+='<div class="pr-info"><p class="pr-name">Foto '+(i+1)+(r.observacao?" - "+r.observacao:"")+'</p>';
+    el.innerHTML+='<p class="pr-detail">'+(det.join(" / ")||"Nenhum")+'</p></div>';
+    el.innerHTML+='<span class="pr-val">'+sub.toLocaleString("pt-BR")+'</span>';
+    plist.appendChild(el);
   });
-  learned.forEach(function(ex,i){
-    msgs.push({role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:ex.b64}},{type:"text",text:"Ex "+(i+1)+": G"+ex.grande+" R"+ex.rasa+" A"+ex.azul+" P"+(ex.pacote||0)+" M"+ex.mesa}]});
-    msgs.push({role:"assistant",content:JSON.stringify({grande:ex.grande,rasa:ex.rasa,azul:ex.azul,pacote:ex.pacote||0,mesa:ex.mesa,observacao:"OK"})});
+  var allObs=results.filter(function(r){return r.observacao;}).map(function(r,i){return "F"+(i+1)+": "+r.observacao;}).join(" - ");
+  var ob=document.getElementById("obsBar");
+  if(allObs){ob.classList.remove("hidden");ob.textContent="IA: "+allObs;}else{ob.classList.add("hidden");}
+  activeTags.clear();
+  var tagsHtml="";
+  OBS_TAGS.forEach(function(t){tagsHtml+='<button class="tag-btn" data-tag="'+t+'" onclick="handleTag(this)">'+t+'</button>';});
+  document.getElementById("tagsList").innerHTML=tagsHtml;
+  var corrHtml="";
+  results.forEach(function(r,i){
+    var p=photos[r.idx];
+    corrHtml+='<div class="corr-sep"><div class="corr-photo-lbl"><img src="'+p.dataUrl+'"><span>Foto '+(i+1)+'</span></div>';
+    corrHtml+='<div class="corr-grid">';
+    corrHtml+='<div class="corr-field"><label>Gr (obj)</label><input type="number" id="c'+i+'_g" min="0" value="'+(parseInt(r.grande)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Ra (obj)</label><input type="number" id="c'+i+'_r" min="0" value="'+(parseInt(r.rasa)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Az (obj)</label><input type="number" id="c'+i+'_a" min="0" value="'+(parseInt(r.azul)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Pct (obj)</label><input type="number" id="c'+i+'_p" min="0" value="'+(parseInt(r.pacote)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Mesa (obj)</label><input type="number" id="c'+i+'_m" min="0" value="'+(parseInt(r.mesa)||0)+'"></div>';
+    corrHtml+='</div></div>';
   });
-  msgs.push({role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:photo.b64}},{type:"text",text:"Analise e retorne o JSON."}]});
-  var res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,system:system,messages:msgs})});
-  var raw=await res.text();var parsed;
-  try{parsed=JSON.parse(raw);}catch(e){throw new Error("Resposta invalida");}
-  if(parsed.error)throw new Error(parsed.error.message||String(parsed.error));
-  var txt=(parsed.content||[]).map(function(c){return c.text||"";}).join("").split(String.fromCharCode(96,96,96)+"json").join("").split(String.fromCharCode(96,96,96)).join("").trim();
-  try{return JSON.parse(txt);}catch(e){throw new Error("JSON invalido: "+txt.substring(0,60));}
+  document.getElementById("correctionList").innerHTML=corrHtml;
+  refreshLearnUI();hide("reportSection");show("step-result");
 }
-function showResults(){
-  var gT=0,rT=0,aT=0,pT=0,mT=0;
-  results.forEach(function(r){gT+=parseInt(r.grande)||0;rT+=parseInt(r.rasa)||0;aT+=parseInt(r.azul)||0;pT+=parseInt(r.pacote)||0;mT+=parseInt(r.mesa)||0;});
-  var total=gT*180+rT*720+aT*2100+pT*185+mT;
-  var slaDateVal=document.getElementById("visitSlaDate").value;
-  var unitCode=document.getElementById("visitUnit").value;
-  var units=getUnits();var unit=units.find(function(u){return u.code===unitCode;});
-  renderSLA(slaDateVal,unit);
-  if(unit&&unit.cap>0){
-    document.getElementById("capBarWrap").classList.remove("hidden");
-    var pct=Math.min(Math.round(total/unit.cap*100),100);
-    document.getElementById("capPct").textContent=pct+"%";
-    var fill=document.getElementById("capBarFill");fill.style.width=pct+"%";
-    fill.style.background=pct>=90?"#ef4444":pct>=70?"#f59e0b":"#34d399";
-  }else{document.getElementById("capBarWrap").classList.add("hidden");}
-  document.getElementById("totalNumber").textContent=total.toLocaleString("pt-BR");
-  document.getElementById("photoCountResult").textContent=photos.length+" foto"+(photos.length>1?"s":"");
-  document.getElementById("resultUnit").textContent=unit?unit.code+" · "+unit.name:"—";
-  document.getElementById("resultAuditor").textContent=document.getElementById("visitAuditor").value||"—";
+function handleTag(el){var tag=el.getAttribute("data-tag");if(activeTags.has(tag)){activeTags.delete(tag);el.classList.remove("active");}else{activeTags.add(tag);el.classList.add("active");}}
+function renderSLA(dateVal,unit){
+  var ind=document.getElementById("slaIndicator"),st=document.getElementById("slaStatus"),det=document.getElementById("slaDetail"),card=document.getElementById("slaCard");
+  if(!dateVal){ind.style.background="#374151";ind.style.boxShadow="none";st.textContent="SLA Nao Informado";st.style.color="#9ca3af";det.textContent="Informe a data de entrada";return;}
+  var diff=Math.floor((new Date()-new Date(dateVal+"T12:00:00"))/(1000*60*60*24));var slaMax=unit?unit.sla:3;
+  if(diff<=0){ind.style.background="#34d399";ind.style.boxShadow="0 0 8px rgba(52,211,153,.5)";st.textContent="Dentro do Prazo";st.style.color="#34d399";det.textContent="Entrada hoje - SLA: "+slaMax+"d";card.style.borderColor="rgba(52,211,153,.2)";card.style.background="rgba(52,211,153,.05)";}
+  else if(diff<slaMax){ind.style.background="#34d399";ind.style.boxShadow="0 0 8px rgba(52,211,153,.5)";st.textContent="Dentro do Prazo";st.style.color="#34d399";det.textContent=diff+"d - SLA: "+slaMax+"d - "+(slaMax-diff)+" restante(s)";card.style.borderColor="rgba(52,211,153,.2)";card.style.background="rgba(52,211,153,.05)";}
+  else if(diff===slaMax){ind.style.background="#f59e0b";ind.style.boxShadow="0 0 8px rgba(245,158,11,.5)";st.textContent="No Limite";st.style.color="#f59e0b";det.textContent=diff+"d - SLA: "+slaMax+"d - Vence hoje";card.style.borderColor="rgba(245,158,11,.25)";card.style.background="rgba(245,158,11,.06)";}
+  else{ind.style.background="#ef4444";ind.style.boxShadow="0 0 8px rgba(239,68,68,.5)";st.textContent="SLA VENCIDO";st.style.color="#ef4444";det.textContent=diff+"d - SLA era "+slaMax+"d - "+(diff-slaMax)+"d EM ATRASO";card.style.borderColor="rgba(239,68,68,.25)";card.style.background="rgba(239,68,68,.06)";}
+}
+function getSlaClass(d,u){if(!d)return"";var diff=Math.floor((new Date()-new Date(d+"T12:00:00"))/(1000*60*60*24));var m=u?u.sla:3;if(diff<m)return"ok";if(diff===m)return"warn";return"crit";}
+function recalculate(){results.forEach(function(r,i){r.grande=parseInt(document.getElementById("c"+i+"_g").value)||0;r.rasa=parseInt(document.getElementById("c"+i+"_r").value)||0;r.azul=parseInt(document.getElementById("c"+i+"_a").value)||0;r.pacote=parseInt(document.getElementById("c"+i+"_p").value)||0;r.mesa=parseInt(document.getElementById("c"+i+"_m").value)||0;});showResults();showToast("Recalculado");}
+function saveWithLearning(){results.forEach(function(r,i){addLearning(photos[r.idx].b64,parseInt(document.getElementById("c"+i+"_g").value)||0,parseInt(document.getElementById("c"+i+"_r").value)||0,parseInt(document.getElementById("c"+i+"_a").value)||0,parseInt(document.getElementById("c"+i+"_p").value)||0,parseInt(document.getElementById("c"+i+"_m").value)||0);});_saveHist();showToast("Salvo + Modelo atualizado");}
+function saveHistoryOnly(){_saveHist();showToast("Salvo");}
+function _saveHist(){
+  var g=0,r=0,a=0,p=0,m=0;
+  results.forEach(function(_,i){g+=parseInt(document.getElementById("c"+i+"_g").value)||0;r+=parseInt(document.getElementById("c"+i+"_r").value)||0;a+=parseInt(document.getElementById("c"+i+"_a").value)||0;p+=parseInt(document.getElementById("c"+i+"_p").value)||0;m+=parseInt(document.getElementById("c"+i+"_m").value)||0;});
+  var total=g*180+r*720+a*2100+p*185+m;
+  var uc=document.getElementById("visitUnit").value;var units=getUnits();var unit=units.find(function(u){return u.code===uc;});
+  var sd=document.getElementById("visitSlaDate").value;
   var prev=parseInt(document.getElementById("visitEfetivoPrevisto").value)||0;
   var pres=parseInt(document.getElementById("visitEfetivoPresente").value)||0;
-  var def=prev-pres;
-  var efEl=document.getElementById("resultEfetivo");
-  if(prev||pres){efEl.textContent="Ef: "+pres+"/"+prev+(def>0?" def:-"+def:def<0?" +"+Math.abs(def):"");efEl.style.color=def>0?"#f87171":def<0?"#34d399":"#555";}else{efEl.textContent="";}
-  document.getElementById("resultTimestamp").textContent=new Date().toLocaleString("pt-BR");
-  var bdiv=document.getElementById("breakdownItems");bdiv.innerHTML="";
-  [{label:"Caixeta Grande Amarela",c:gT,cap:180,cor:"#f59e0b"},
-   {label:"Bandeja Rasa Amarela",c:rT,cap:720,cor:"#f97316"},
-   {label:"Caixeta Azul",c:aT,cap:2100,cor:"#3b82f6"},
-   {label:"Pacote / Maco",c:pT,cap:185,cor:"#34d399"},
-   {label:"Mesa de Escaninhos",c:0,cap:1,cor:"#a78bfa",isMesa:true}
-  ].forEach(function(t){
-    var cnt=t.isMesa?mT:t.c;if(!cnt)return;
-    var sub=t.isMesa?mT:t.c*t.cap;
+  var hist=getHistory();
+  hist.unshift({date:new Date().toLocaleString("pt-BR"),total:total,fotos:photos.length,grande:g,rasa:r,azul:a,pacote:p,mesa:m,unitCode:uc,unitName:unit?unit.name:"",auditor:document.getElementById("visitAuditor").value||"",turno:document.getElementById("visitTurno").value,slaDate:sd,slaClass:getSlaClass(sd,unit),tags:Array.from(activeTags),obs:document.getElementById("visitObs").value,efetivoPrevisto:prev,efetivoPresente:pres,deficit:prev-pres,id:Date.now()});
+  if(hist.length>50)hist.pop();localStorage.setItem(K_HISTORY,JSON.stringify(hist));
+}
+function generateReport(){
+  var uc=document.getElementById("visitUnit").value;var units=getUnits();var u=units.find(function(x){return x.code===uc;});
+  var g=0,r=0,a=0,p=0,m=0;
+  results.forEach(function(_,i){g+=parseInt(document.getElementById("c"+i+"_g").value)||0;r+=parseInt(document.getElementById("c"+i+"_r").value)||0;a+=parseInt(document.getElementById("c"+i+"_a").value)||0;p+=parseInt(document.getElementById("c"+i+"_p").value)||0;m+=parseInt(document.getElementById("c"+i+"_m").value)||0;});
+  var total=g*180+r*720+a*2100+p*185+m;
+  var sd=document.getElementById("visitSlaDate").value;var aud=document.getElementById("visitAuditor").value||"—";var turno=document.getElementById("visitTurno").value;
+  var tags=Array.from(activeTags);var obs=document.getElementById("visitObs").value;var now=new Date().toLocaleString("pt-BR");
+  var prev=parseInt(document.getElementById("visitEfetivoPrevisto").value)||0;var pres=parseInt(document.getElementById("visitEfetivoPresente").value)||0;var def=prev-pres;
+  var slaInfo="Nao informado";
+  if(sd){var diff=Math.floor((new Date()-new Date(sd+"T12:00:00"))/(1000*60*60*24));var sm=u?u.sla:3;if(diff<sm)slaInfo="DENTRO DO PRAZO ("+diff+"d / SLA "+sm+"d)";else if(diff===sm)slaInfo="NO LIMITE";else slaInfo="VENCIDO "+(diff-sm)+"d em atraso";}
+  var cap="";if(u&&u.cap>0){cap="\nCapacidade: "+Math.round(total/u.cap*100)+"% ("+total.toLocaleString("pt-BR")+" / "+u.cap.toLocaleString("pt-BR")+" obj)";}
+  var lines=["================================","RESIDOPS - RELATORIO DE AUDITORIA","================================","Data: "+now,"Auditor: "+aud+" | "+turno,"Unidade: "+(u?u.code+" - "+u.name:"—"),"","VOLUME TOTAL","------------",total.toLocaleString("pt-BR")+" objetos"+cap,"","DETALHAMENTO","------------"];
+  if(g)lines.push("Cx.Grande  "+g+" x 180 = "+(g*180).toLocaleString("pt-BR"));
+  if(r)lines.push("Bandeja    "+r+" x 720 = "+(r*720).toLocaleString("pt-BR"));
+  if(a)lines.push("Cx.Azul    "+a+" x 2100 = "+(a*2100).toLocaleString("pt-BR"));
+  if(p)lines.push("Pacotes    "+p+" x 185 = "+(p*185).toLocaleString("pt-BR"));
+  if(m)lines.push("Mesa       "+m.toLocaleString("pt-BR"));
+  if(prev||pres){lines.push("","EFETIVO","-------","Previsto: "+prev,"Presente: "+pres,(def>0?"Deficit: "+def:def<0?"Excedente: +"+Math.abs(def):"Completo"));}
+  lines.push("","SLA","---",slaInfo);
+  if(tags.length){lines.push("","OCORRENCIAS","-----------");tags.forEach(function(t){lines.push("- "+t);});}
+  if(obs){lines.push("","OBSERVACOES","-----------",obs);}
+  lines.push("","================================","RESIDOPS (c) 2025 DFS");
+  currentReport=lines.join("\n");
+  document.getElementById("reportText").textContent=currentReport;
+  show("reportSection");document.getElementById("reportSection").scrollIntoView({behavior:"smooth"});
+}
+function copyReport(){navigator.clipboard.writeText(currentReport).then(function(){showToast("Copiado!");}).catch(function(){var ta=document.createElement("textarea");ta.value=currentReport;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("Copiado!");});}
+function shareWhatsApp(){if(!currentReport)generateReport();window.open("https://wa.me/5518981928468?text="+encodeURIComponent(currentReport),"_blank");}
+function shareEmail(){if(!currentReport)generateReport();window.location.href="mailto:d3lsempre@gmail.com?subject="+encodeURIComponent("Relatorio RESIDOPS - "+new Date().toLocaleDateString("pt-BR"))+"&body="+encodeURIComponent(currentReport);}
+function getHistory(){try{return JSON.parse(localStorage.getItem(K_HISTORY)||"[]");}catch(e){return[];}}
+function renderHistory(){
+  var filter=document.getElementById("histFilter").value;var hist=getHistory();
+  if(filter)hist=hist.filter(function(h){return h.unitCode===filter;});
+  var list=document.getElementById("historyList");
+  if(!hist.length){list.innerHTML='<div class="empty-state">Nenhuma visita registrada</div>';return;}
+  var html="";
+  hist.forEach(function(h){
+    var tagsHtml="";(h.tags||[]).forEach(function(t){tagsHtml+='<span class="hist-tag">'+t+'</span>';});
+    var slaHtml="";if(h.slaClass){var sc=h.slaClass==="ok"?"OK":h.slaClass==="warn"?"Limite":"Vencido";slaHtml='<span class="hist-tag sla-'+h.slaClass+'">'+sc+'</span>';}
+    html+='<div class="hist-item"><div class="hist-top"><div>';
+    html+='<p class="hist-unit">'+(h.unitCode?h.unitCode+" - "+h.unitName:"Sem unidade")+'</p>';
+    html+='<p class="hist-meta">'+h.date+' · '+(h.turno||"")+" · "+(h.auditor||"—")+'</p>';
+    html+='<p class="hist-meta">G:'+(h.grande||0)+' R:'+(h.rasa||0)+' A:'+(h.azul||0)+' P:'+(h.pacote||0)+' M:'+(h.mesa||0)+'</p>';
+    if(h.obs)html+='<p class="hist-meta">'+h.obs.substring(0,80)+'</p>';
+    html+='</div><span class="hist-total">'+h.total.toLocaleString("pt-BR")+'</span></div>';
+    html+='<div class="hist-tags">'+slaHtml+tagsHtml+'</div></div>';
+  });
+  list.innerHTML=html;
+}
+function clearHistory(){if(!confirm("Limpar historico?"))return;localStorage.removeItem(K_HISTORY);renderHistory();showToast("Historico apagado");}
+function renderDashboard(){
+  var hist=getHistory();var units=getUnits();
+  var tv=hist.length,to=hist.reduce(function(s,h){return s+h.total;},0),av=tv?Math.round(to/tv):0,vc=hist.filter(function(h){return h.slaClass==="crit";}).length;
+  var sh="";
+  [{val:tv,lbl:"Visitas",cor:"#a5b4fc"},{val:to.toLocaleString("pt-BR"),lbl:"Total Obj",cor:"#6366f1"},{val:av.toLocaleString("pt-BR"),lbl:"Media/Visita",cor:"#818cf8"},{val:vc,lbl:"SLA Vencido",cor:vc>0?"#f87171":"#34d399"}].forEach(function(s){sh+='<div class="stat-card"><p class="stat-val" style="color:'+s.cor+'">'+s.val+'</p><p class="stat-lbl">'+s.lbl+'</p></div>';});
+  document.getElementById("statsGrid").innerHTML=sh;
+  renderChart();
+  var us=document.getElementById("unitStats");
+  if(!units.length){us.innerHTML='<div class="empty-state">Cadastre unidades</div>';return;}
+  var uh="";
+  units.forEach(function(u){
+    var uh2=hist.filter(function(h){return h.unitCode===u.code;});var last=uh2[0];
+    var avg=uh2.length?Math.round(uh2.reduce(function(s,h){return s+h.total;},0)/uh2.length):0;
+    uh+='<div class="unit-card"><div class="unit-card-inner"><div>';
+    uh+='<div style="display:flex;align-items:center"><span class="unit-code">'+u.code+'</span><span class="unit-sla-badge">'+u.name+'</span></div>';
+    uh+='<p class="unit-meta">'+uh2.length+' visita(s) · Media '+avg.toLocaleString("pt-BR")+" obj"+(last?" · "+last.date.split(",")[0]:"")+' </p></div>';
+    if(u.cap>0&&last)uh+='<div style="text-align:right"><p class="unit-code">'+Math.round(last.total/u.cap*100)+'%</p><p class="unit-meta">cap.ocup.</p></div>';
+    uh+='</div></div>';
+  });
+  us.innerHTML=uh;
+}
+function renderChart(){
+  var filter=document.getElementById("chartUnitFilter").value;var hist=getHistory();
+  if(filter)hist=hist.filter(function(h){return h.unitCode===filter;});
+  hist=hist.slice(0,10).reverse();
+  var wrap=document.getElementById("chartWrap");
+  if(!hist.length){wrap.innerHTML='<p style="width:100%;text-align:center;font-family:JetBrains Mono,monospace;font-size:11px;color:#374151">Sem dados</p>';return;}
+  var max=Math.max.apply(null,hist.map(function(h){return h.total;}).concat([1]));var html="";
+  hist.forEach(function(h){var pct=Math.round(h.total/max*100);var lbl=h.date.split(",")[0].substring(0,5);html+='<div class="chart-col"><div class="chart-bar" style="height:'+pct+'%"></div><span class="chart-lbl">'+lbl+'</span></div>';});
+  wrap.innerHTML=html;
+}
+function resetApp(){
+  photos=[];results=[];activeTags.clear();currentReport="";
+  document.getElementById("fileInput").value="";
+  document.getElementById("visitObs").value="";
+  document.getElementById("visitSlaDate").value=new Date().toISOString().split("T")[0];
+  document.getElementById("visitEfetivoPrevisto").value="";
+  document.getElementById("visitEfetivoPresente").value="";
+  hide("step-result");hide("loadingSection");hide("errorSection");hide("photoGridSection");hide("analyzeSection");hide("reportSection");
+  document.getElementById("obsBar").classList.add("hidden");
+  show("step-config");show("uploadSection");
+}
+function show(id){var e=document.getElementById(id);if(e)e.classList.remove("hidden");}
+function hide(id){var e=document.getElementById(id);if(e)e.classList.add("hidden");}
+function showToast(msg){var t=document.getElementById("toast");t.textContent=msg;t.style.transform="translateX(-50%) translateY(0)";setTimeout(function(){t.style.transform="translateX(-50%) translateY(80px)";},2500);}
+window.onload=function(){
+  document.querySelectorAll(".screen").forEach(function(s){s.style.display="none";});
+  var first=document.getElementById("screen-unidades");if(first){first.style.display="block";}
+  populateUnitSelects();refreshLearnUI();
+  var saved=localStorage.getItem(K_AUDITOR);if(saved)document.getElementById("visitAuditor").value=saved;
+  document.getElementById("visitSlaDate").value=new Date().toISOString().split("T")[0];
+};
+</script>
+</body>
+</html  types.forEach(function(t){
+    if(!t.v)return;
     var el=document.createElement("div");el.className="breakdown-item";
     el.innerHTML='<div class="bd-dot" style="background:'+t.cor+'"></div>';
     el.innerHTML+='<div class="bd-info"><p class="bd-name">'+t.label+'</p>';
-    el.innerHTML+='<p class="bd-calc">'+(t.isMesa?mT.toLocaleString("pt-BR")+" obj estimados":t.c+" x "+t.cap+" = "+sub.toLocaleString("pt-BR"))+'</p></div>';
-    el.innerHTML+='<span class="bd-val">'+sub.toLocaleString("pt-BR")+'</span>';
+    el.innerHTML+='<p class="bd-calc">estimativa com preenchimento real</p></div>';
+    el.innerHTML+='<span class="bd-val">'+t.v.toLocaleString("pt-BR")+'</span>';
     bdiv.appendChild(el);
   });
   var plist=document.getElementById("photoResultsList");plist.innerHTML="";
@@ -712,11 +827,11 @@ function showResults(){
     var p=photos[r.idx];
     corrHtml+='<div class="corr-sep"><div class="corr-photo-lbl"><img src="'+p.dataUrl+'"><span>Foto '+(i+1)+'</span></div>';
     corrHtml+='<div class="corr-grid">';
-    corrHtml+='<div class="corr-field"><label>Cx.Grande</label><input type="number" id="c'+i+'_g" min="0" value="'+(parseInt(r.grande)||0)+'"></div>';
-    corrHtml+='<div class="corr-field"><label>Bandeja</label><input type="number" id="c'+i+'_r" min="0" value="'+(parseInt(r.rasa)||0)+'"></div>';
-    corrHtml+='<div class="corr-field"><label>Cx.Azul</label><input type="number" id="c'+i+'_a" min="0" value="'+(parseInt(r.azul)||0)+'"></div>';
-    corrHtml+='<div class="corr-field"><label>Pacotes</label><input type="number" id="c'+i+'_p" min="0" value="'+(parseInt(r.pacote)||0)+'"></div>';
-    corrHtml+='<div class="corr-field"><label>Mesa</label><input type="number" id="c'+i+'_m" min="0" value="'+(parseInt(r.mesa)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Gr (obj)</label><input type="number" id="c'+i+'_g" min="0" value="'+(parseInt(r.grande)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Ra (obj)</label><input type="number" id="c'+i+'_r" min="0" value="'+(parseInt(r.rasa)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Az (obj)</label><input type="number" id="c'+i+'_a" min="0" value="'+(parseInt(r.azul)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Pct (obj)</label><input type="number" id="c'+i+'_p" min="0" value="'+(parseInt(r.pacote)||0)+'"></div>';
+    corrHtml+='<div class="corr-field"><label>Mesa (obj)</label><input type="number" id="c'+i+'_m" min="0" value="'+(parseInt(r.mesa)||0)+'"></div>';
     corrHtml+='</div></div>';
   });
   document.getElementById("correctionList").innerHTML=corrHtml;
