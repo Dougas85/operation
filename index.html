@@ -628,7 +628,7 @@ async function analyzeAll(){
 }
 async function analyzePhoto(photo){
   var learned=getLearning();
-  var system='Voce e especialista em auditoria de unidades dos Correios. GABARITAGEM (100% cheio): Caixeta grande amarela: 180 obj. Bandeja rasa amarela: 720 obj. Caixeta azul: 2100 obj. Pacote/maco amarrado: 185 obj. Mesa de escaninhos (35 escans): 5075 total, 145 por escaninho. REGRAS DE ESTIMATIVA: 1) MESA: analise cada escaninho individualmente, estime 0/25/50/75/100% e multiplique por 145. 2) REGRA DA BASE INVISIVEL: se a base da pilha de caixetas NAO esta visivel, considere CHEIA. Se o conteudo esta visivel e nao esta cheio, estime o percentual real (25/50/75%). Caixeta claramente vazia = 0. 3) FILEIRAS: nivel de baixo com base oculta = cheio. Nivel de cima visivel = estimar real. 4) Seja conservador em caso de duvida. Retorne APENAS JSON com totais JA CALCULADOS considerando preenchimento real: {"grande":<total_obj>,"rasa":<total_obj>,"azul":<total_obj>,"pacote":<total_obj>,"mesa":<total_obj>,"observacao":"<descricao>"}';
+  var system='Analise a imagem e retorne APENAS um objeto JSON, sem texto antes ou depois, sem explicacoes. Nao escreva nada alem do JSON. GABARITAGEM (capacidade 100% cheia): Caixeta grande amarela=180obj. Bandeja rasa amarela=720obj. Caixeta azul=2100obj. Pacote/maco=185obj. Mesa 35 escaninhos=5075obj total, 145 por escaninho. REGRAS: 1)MESA: some individualmente cada escaninho estimando 0/25/50/75/100% de 145. 2)CAIXETAS EMPILHADAS: se a base nao esta visivel, considere cheia. Se visivel, estime o percentual real. 3)FILEIRAS: nivel inferior com base oculta=cheio. Nivel superior visivel=estimar real. FORMATO OBRIGATORIO - retorne EXATAMENTE isso e nada mais: {"grande":0,"rasa":0,"azul":0,"pacote":0,"mesa":0,"observacao":"texto"}';
   var msgs=[];
   BASE_TRAINING.forEach(function(ex,i){
     msgs.push({role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:ex.b64}},{type:"text",text:"Ref "+(i+1)+": mesa "+ex.total+" obj."}]});
@@ -644,7 +644,13 @@ async function analyzePhoto(photo){
   try{parsed=JSON.parse(raw);}catch(e){throw new Error("Resposta invalida");}
   if(parsed.error)throw new Error(parsed.error.message||String(parsed.error));
   var txt=(parsed.content||[]).map(function(c){return c.text||"";}).join("").split(String.fromCharCode(96,96,96)+"json").join("").split(String.fromCharCode(96,96,96)).join("").trim();
-  try{return JSON.parse(txt);}catch(e){throw new Error("JSON invalido: "+txt.substring(0,60));}
+  try{return JSON.parse(txt);}catch(e){
+    var m=txt.match(/\{[^{}]*"grande"[^{}]*\}/);
+    if(m){try{return JSON.parse(m[0]);}catch(e2){}}
+    var start=txt.indexOf("{");var end=txt.lastIndexOf("}");
+    if(start>=0&&end>start){try{return JSON.parse(txt.substring(start,end+1));}catch(e3){}}
+    throw new Error("JSON invalido: "+txt.substring(0,80));
+  }
 }
 function showResults(){
   var gT=0,rT=0,aT=0,pT=0,mT=0;
