@@ -807,35 +807,113 @@ function generateReport(){
   var prev=parseInt(document.getElementById("visitEfetivoPrevisto").value)||0;
   var pres=parseInt(document.getElementById("visitEfetivoPresente").value)||0;
   var def=prev-pres;
-  var slaInfo="Nao informado";
-  if(sd){var diff=Math.floor((new Date()-new Date(sd+"T12:00:00"))/(1000*60*60*24));var sm=u?u.sla:3;
-    if(diff<sm)slaInfo="DENTRO DO PRAZO ("+diff+"d / SLA "+sm+"d)";
-    else if(diff===sm)slaInfo="NO LIMITE";
-    else slaInfo="VENCIDO "+(diff-sm)+"d em atraso";}
-  var cap="";
-  if(u&&u.cap>0){cap="\nCapacidade: "+Math.round(total/u.cap*100)+"% ("+total.toLocaleString("pt-BR")+" / "+u.cap.toLocaleString("pt-BR")+" obj)";}
-  var lines=["================================","RESIDOPS - RELATORIO DE AUDITORIA",
-    "================================","Data: "+now,"Auditor: "+aud+" | "+turno,
-    "Unidade: "+(u?u.code+" - "+u.name:"—"),"","VOLUME TOTAL","------------",
-    total.toLocaleString("pt-BR")+" objetos postais"+cap,"","DETALHAMENTO","------------",
-    "(valores estimados com nivel real de preenchimento)"];
-  if(g)lines.push("Cx.Grande    "+g.toLocaleString("pt-BR")+" obj");
-  if(r)lines.push("Bandeja Rasa "+r.toLocaleString("pt-BR")+" obj");
-  if(a)lines.push("Cx.Azul      "+a.toLocaleString("pt-BR")+" obj");
-  if(p)lines.push("Pacotes      "+p.toLocaleString("pt-BR")+" obj");
-  if(m)lines.push("Mesa Escans. "+m.toLocaleString("pt-BR")+" obj");
-  if(prev||pres){lines.push("","EFETIVO","-------","Previsto: "+prev,"Presente: "+pres,
-    (def>0?"Deficit: "+def:def<0?"Excedente: +"+Math.abs(def):"Completo"));}
-  lines.push("","SLA","---",slaInfo);
-  if(tags.length){lines.push("","OCORRENCIAS","-----------");tags.forEach(function(t){lines.push("- "+t);});}
-  if(obs){lines.push("","OBSERVACOES","-----------",obs);}
-  lines.push("","================================","RESIDOPS (c) 2025 DFS");
+
+  // SLA calculation
+  var slaEmoji="⚪";var slaInfo="Nao informado";var slaStatus="";
+  if(sd){
+    var diff=Math.floor((new Date()-new Date(sd+"T12:00:00"))/(1000*60*60*24));
+    var sm=u?u.sla:3;
+    if(diff<sm){slaEmoji="🟢";slaStatus="DENTRO DO PRAZO";slaInfo="Dentro do prazo ("+diff+"d / SLA "+sm+"d)";}
+    else if(diff===sm){slaEmoji="🟡";slaStatus="NO LIMITE";slaInfo="No limite do prazo ("+diff+"d / SLA "+sm+"d)";}
+    else{slaEmoji="🔴";slaStatus="SLA VENCIDO";slaInfo="VENCIDO "+( diff-sm)+"d em atraso ("+diff+"d / SLA "+sm+"d)";}
+  }
+
+  // Capacity context
+  var capLine="";var capEmoji="";
+  if(u&&u.cap>0){
+    var pct=Math.round(total/u.cap*100);
+    capEmoji=pct>=90?"🔴":pct>=70?"🟡":"🟢";
+    capLine=capEmoji+" Ocupacao: "+pct+"% ("+total.toLocaleString("pt-BR")+" / "+u.cap.toLocaleString("pt-BR")+" obj)";
+  }
+
+  // Efetivo line
+  var efLine="";
+  if(prev||pres){
+    var efEmoji=def>0?"🔴":def<0?"🟢":"🟢";
+    efLine=efEmoji+" Efetivo: "+pres+"/"+prev+(def>0?" (DEFICIT: "+def+" func)":def<0?" (excedente: +"+Math.abs(def)+")":"");
+  }
+
+  // Executive summary - first 2 lines for quick decision
+  var unitName=u?u.code+" - "+u.name:"—";
+  var execLine1=slaEmoji+" "+slaStatus+" | "+unitName;
+  var execLine2="📦 "+total.toLocaleString("pt-BR")+" objetos"+(u&&u.cap>0?" ("+Math.round(total/u.cap*100)+"% cap)":"")+" | "+aud+" | "+turno;
+
+  var lines=[
+    "━━━━━━━━━━━━━━━━━━━━━━━━",
+    execLine1,
+    execLine2,
+    "━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    "📋 RESIDOPS — AUDITORIA",
+    "Data: "+now,
+    "Auditor: "+aud+" | "+turno,
+    "Unidade: "+unitName,
+    ""
+  ];
+
+  // SLA block
+  lines.push("⏱ SLA / PRAZO","─────────────",slaEmoji+" "+slaInfo,"");
+
+  // Capacity block
+  if(capLine){lines.push("📊 CAPACIDADE","─────────────",capLine,"");}
+
+  // Efetivo block
+  if(efLine){lines.push("👥 EFETIVO","─────────────",efLine,"");}
+
+  // Volume block
+  lines.push("📦 VOLUME TOTAL","─────────────",total.toLocaleString("pt-BR")+" objetos postais","");
+  lines.push("📋 DETALHAMENTO","─────────────","(estimativa com nivel real de preenchimento)");
+  if(g)lines.push("• Cx. Grande: "+g.toLocaleString("pt-BR")+" obj");
+  if(r)lines.push("• Bandeja Rasa: "+r.toLocaleString("pt-BR")+" obj");
+  if(a)lines.push("• Cx. Azul: "+a.toLocaleString("pt-BR")+" obj");
+  if(p)lines.push("• Pacotes: "+p.toLocaleString("pt-BR")+" obj");
+  if(m)lines.push("• Mesa Escaninhos: "+m.toLocaleString("pt-BR")+" obj");
+  lines.push("");
+
+  // Tags / occurrences
+  if(tags.length){
+    lines.push("⚠️ OCORRENCIAS","─────────────");
+    tags.forEach(function(t){lines.push("• "+t);});
+    lines.push("");
+  }
+
+  // Observations
+  if(obs){lines.push("📝 OBSERVACOES","─────────────",obs,"");}
+
+  lines.push("━━━━━━━━━━━━━━━━━━━━━━━━","RESIDOPS © 2025 DFS");
+
   currentReport=lines.join("\n");
   document.getElementById("reportText").textContent=currentReport;
-  show("reportSection");document.getElementById("reportSection").scrollIntoView({behavior:"smooth"});
+  show("reportSection");
+  document.getElementById("reportSection").scrollIntoView({behavior:"smooth"});
 }
+
 function copyReport(){navigator.clipboard.writeText(currentReport).then(function(){showToast("Copiado!");}).catch(function(){var ta=document.createElement("textarea");ta.value=currentReport;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);showToast("Copiado!");});}
-function shareWhatsApp(){if(!currentReport)generateReport();window.open("https://wa.me/5518981928468?text="+encodeURIComponent(currentReport),"_blank");}
+function shareWhatsApp(){
+  if(!currentReport)generateReport();
+  // Send report text to WhatsApp
+  window.open("https://wa.me/5518981928468?text="+encodeURIComponent(currentReport),"_blank");
+  // After a short delay, prompt to share photo too
+  setTimeout(function(){
+    if(photos.length>0){
+      if(confirm("Deseja compartilhar as fotos tambem?\n(Salve as fotos e envie manualmente no WhatsApp)")){
+        sharePhotos();
+      }
+    }
+  },2000);
+}
+function sharePhotos(){
+  // Create a canvas with all photos and trigger download
+  var link=document.createElement("a");
+  photos.forEach(function(p,i){
+    link.href=p.dataUrl;
+    link.download="residops_foto_"+(i+1)+".jpg";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+  showToast("Fotos salvas! Envie no WhatsApp.");
+}
 function shareEmail(){if(!currentReport)generateReport();window.location.href="mailto:d3lsempre@gmail.com?subject="+encodeURIComponent("Relatorio RESIDOPS - "+new Date().toLocaleDateString("pt-BR"))+"&body="+encodeURIComponent(currentReport);}
 function getHistory(){try{return JSON.parse(localStorage.getItem(K_HISTORY)||"[]");}catch(e){return[];}}
 function renderHistory(){
