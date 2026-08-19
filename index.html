@@ -639,7 +639,7 @@ async function analyzePhoto(photo){
     msgs.push({role:"assistant",content:JSON.stringify({grande:ex.grande,rasa:ex.rasa,azul:ex.azul,pacote:ex.pacote||0,mesa:ex.mesa,observacao:"OK"})});
   });
   msgs.push({role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:photo.b64}},{type:"text",text:"Analise e retorne o JSON."}]});
-  var res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,system:system,messages:msgs})});
+  var res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:500,system:system,messages:msgs})});
   var raw=await res.text();var parsed;
   try{parsed=JSON.parse(raw);}catch(e){throw new Error("Resposta invalida");}
   if(parsed.error)throw new Error(parsed.error.message||String(parsed.error));
