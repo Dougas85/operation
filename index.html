@@ -629,18 +629,24 @@ async function analyzeAll(){
 async function analyzePhoto(photo){
   var learned = getLearning();
   var system = 'Voce e um sistema de contagem de objetos postais dos Correios brasileiros. Retorne APENAS JSON puro, sem texto, sem explicacao. ' +
-    'IDENTIFICACAO VISUAL: ' +
-    'Caixeta GRANDE amarela = caixa alta/funda. Capacidade: 180 obj. ' +
-    'Bandeja RASA amarela = recipiente baixo e comprido. Capacidade: 720 obj. ' +
-    'Caixeta azul/preta = caixa de plastico vazada alta (azul ou preta). Capacidade: 2100 obj. ' +
-    'Pacote/maco = cartas amarradas com elastico. Capacidade: 185 obj. ' +
-    'Mesa de escaninhos = estante cinza com compartimentos em fileiras e colunas, 35 escaninhos, 145 obj cada cheio. ' +
-    
-    'CALIBRACAO CAIXETA AZUL/PRETA (2100 obj): ' +
-    'Pouco volume (fundo visivel em vários pontos) = 525 obj (25%). ' +
-    'Volume medio (pilha cobrindo o fundo, altura intermediaria) = 945 obj (45%). ' +
-    'Volume alto (caixa cheia ate perto da borda) = 1575 obj (75%). ' +
-    'Transbordando = 2100 obj (100%). ' +
+    'IDENTIFICACAO VISUAL E CAPACIDADES MAXIMUMS: ' +
+    'Caixeta GRANDE amarela = caixa alta/funda amarela. Capacidade: 180 obj. Soma no campo "grande". ' +
+    'Bandeja RASA amarela = recipiente baixo e comprido amarelo. Capacidade: 720 obj. Soma no campo "rasa". ' +
+    'Caixeta azul/preta = caixa de plastico vazada grande/alta (pode ser AZUL ou PRETA). Capacidade: 2100 obj. Soma no campo "azul". ' +
+    'Pacote/maco = cartas amarradas com elastico. Capacidade: 185 obj. Soma no campo "pacote". ' +
+    'Mesa de escaninhos = estante cinza com compartimentos em fileiras e colunas, 35 escaninhos, 145 obj cada cheio. Soma no campo "mesa". ' +
+
+    'REGRA GERAL E OBRIGATORIA DE EMPILHAMENTO (PARA TODAS AS CAIXAS: AZUIS, PRETAS E AMARELAS): ' +
+    '1. Identifique todas as pilhas de recipientes/caixas na imagem. ' +
+    '2. Caixa do TOPO da pilha: Estime o volume de preenchimento pelo aspecto visual (ex: 25%, 45%, 75% ou 100% da sua capacidade). ' +
+    '3. Caixas de BAIXO (que servem de base/suporte da pilha): OBRIGATORIO considerar 100% CHEIAS (multiplicar 1 x Capacidade maxima do tipo da caixa). ' +
+    '4. Em cada categoria ("grande", "rasa", "azul"), o total deve ser a SOMA de todas as caixas do topo (estimadas) + todas as caixas de baixo (100% cheias). ' +
+
+    'CALIBRACAO VISUAL DE PREENCHIMENTO (CAIXAS DO TOPO): ' +
+    'Pouco volume (fundo visivel em varios pontos) = 25% da capacidade do recipiente. ' +
+    'Volume medio (pilha cobrindo o fundo, altura intermediaria) = 45% da capacidade do recipiente. ' +
+    'Volume alto (caixa cheia ate perto da borda) = 75% da capacidade do recipiente. ' +
+    'Transbordando = 100% da capacidade do recipiente. ' +
 
     'CALIBRACAO PRECISA - MESA DE ESCANINHOS: Use a ALTURA da pilha de cartas como referencia principal: ' +
     'Vazio = 0 cartas visiveis. Valor: 0 obj. ' +
@@ -649,12 +655,13 @@ async function analyzePhoto(photo){
     'Pilha media 5-6cm = envelopes moderados, ocupa cerca de metade. Valor: 72 obj (50%). ' +
     'Pilha grossa 7-9cm = bem preenchido, mais da metade. Valor: 109 obj (75%). ' +
     'Pilha muito grossa 10cm ou mais = quase cheio ou transbordando. Valor: 145 obj (100%). ' +
-    
+
     'REGRA CONSERVADORA MESA: na duvida, use o valor MENOR na mesa de escaninhos. Prefira 36 a 58, prefira 58 a 72. Um escaninho com envelopes visiveis mas espalhados = 25-40%, NAO 75%. ' +
     'REGRA MESA: analise fileira por fileira, escaninho por escaninho. Some todos. Exemplo desta mesa: maioria dos escaninhos com pilhas de 3-5cm = usar 40-50%, NAO 75-100%. ' +
-    
-    'REGRA PILHAS CAIXETAS: Caixeta do TOPO = estimar pelo visual. Demais abaixo que sustentam pilhas postais = 100% cheias. ' +
-    'ATENCAO: valores no JSON = VOLUME ja calculado, nao quantidade de recipientes. ERRADO: 1 bandeja rasa = rasa:1. CORRETO: 1 bandeja rasa 60% = rasa:432. ' +
+
+    'ATENCAO: valores no JSON = VOLUME ja calculado (quantidade x capacidade x preenchimento), nao quantidade de recipientes. ' +
+    'Exemplo: 1 caixa azul no topo a 45% (945) + 1 caixa preta de base a 100% (2100) = "azul": 3045. ' +
+    'Exemplo: 1 caixeta grande amarela topo a 50% (90) + 1 caixeta grande amarela base 100% (180) = "grande": 270. ' +
     'FORMATO obrigatorio: {"grande":0,"rasa":0,"azul":0,"pacote":0,"mesa":0,"observacao":"texto"}';
 
   var msgs = [];
